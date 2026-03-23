@@ -21,8 +21,6 @@
     color: black;
   }
 
-  h1 { margin-bottom: 20px; }
-
   #dropArea {
     border: 2px dashed #3b82f6;
     padding: 30px;
@@ -36,7 +34,7 @@
     background: #e2e8f0;
   }
 
-  input, button, select {
+  input, button {
     margin: 10px;
     padding: 10px;
     border-radius: 8px;
@@ -53,8 +51,8 @@
     width: 100px;
     height: 100px;
     margin: 10px auto;
-    border-radius: 10px;
     border: 2px solid white;
+    border-radius: 10px;
   }
 
   .container {
@@ -76,12 +74,6 @@
     background: #e2e8f0;
   }
 
-  .grid {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-  }
-
   canvas, img {
     width: 110px;
     height: 110px;
@@ -90,21 +82,31 @@
 
   .palette {
     display: flex;
+    flex-wrap: wrap;
     justify-content: center;
-    margin-bottom: 8px;
+  }
+
+  .palette-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 4px;
   }
 
   .color {
     width: 18px;
     height: 18px;
-    margin: 2px;
     border: 1px solid #000;
+  }
+
+  .text {
+    font-size: 10px;
+    white-space: pre;
   }
 
   .bottom {
     margin-top: 20px;
   }
-
 </style>
 </head>
 <body>
@@ -158,6 +160,7 @@ function updateColorBox() {
   document.getElementById("colorBox").style.background = color;
 }
 
+// Drag & Drop
 dropArea.addEventListener("dragover", e => {
   e.preventDefault();
   dropArea.style.background = "#334155";
@@ -175,6 +178,7 @@ dropArea.addEventListener("drop", e => {
 
 fileInput.addEventListener("change", showOriginals);
 
+// Show original images + palette
 function showOriginals() {
   const box = document.getElementById("originals");
   box.innerHTML = "";
@@ -190,10 +194,7 @@ function showOriginals() {
 
     img.onload = () => {
       getPalette(img).forEach(c => {
-        const d = document.createElement("div");
-        d.className = "color";
-        d.style.background = c;
-        pal.appendChild(d);
+        pal.appendChild(createPaletteItem(c));
       });
     };
 
@@ -203,6 +204,7 @@ function showOriginals() {
   });
 }
 
+// Convert images
 function processImages() {
   const files = fileInput.files;
   const target = hexToRgb(document.getElementById("colorPicker").value);
@@ -245,11 +247,8 @@ function processImages() {
       const pal = document.createElement("div");
       pal.className = "palette";
 
-      getPaletteFromCanvas(c).forEach(c => {
-        const d = document.createElement("div");
-        d.className = "color";
-        d.style.background = c;
-        pal.appendChild(d);
+      getPaletteFromCanvas(c).forEach(col => {
+        pal.appendChild(createPaletteItem(col));
       });
 
       const btn = document.createElement("button");
@@ -272,8 +271,9 @@ function processImages() {
   });
 }
 
+// ZIP download
 function downloadZip() {
-  if (!stored.length) return alert("No converted images yet!");
+  if (!stored.length) return alert("No converted images!");
 
   const zip = new JSZip();
 
@@ -288,6 +288,25 @@ function downloadZip() {
     a.download = "textures.zip";
     a.click();
   });
+}
+
+// Palette helpers
+function createPaletteItem(c) {
+  const wrap = document.createElement("div");
+  wrap.className = "palette-item";
+
+  const box = document.createElement("div");
+  box.className = "color";
+  box.style.background = rgbToHex(c.r, c.g, c.b);
+
+  const text = document.createElement("div");
+  text.className = "text";
+  text.innerText = `${rgbToHex(c.r,c.g,c.b)}\nrgb(${c.r},${c.g},${c.b})`;
+
+  wrap.appendChild(box);
+  wrap.appendChild(text);
+
+  return wrap;
 }
 
 function getPalette(img) {
@@ -308,11 +327,17 @@ function getPaletteFromCanvas(c) {
 
 function extract(data) {
   const map = {};
+
   for (let i = 0; i < data.length; i += 40) {
-    const hex = rgbToHex(data[i], data[i+1], data[i+2]);
-    map[hex] = true;
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
+
+    const hex = rgbToHex(r, g, b);
+    map[hex] = { r, g, b };
   }
-  return Object.keys(map).slice(0, 6);
+
+  return Object.values(map).slice(0, 6);
 }
 
 function rgbToHex(r,g,b) {
