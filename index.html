@@ -1,354 +1,963 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>Texture Color Converter</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Texture Color Converter</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #1e293b;
+      --panel-2: #111827;
+      --text: #ffffff;
+      --muted: #cbd5e1;
+      --border: #334155;
+      --accent: #3b82f6;
+      --accent-2: #2563eb;
+      --shadow: 0 10px 30px rgba(0, 0, 0, 0.22);
+    }
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    body.light {
+      --bg: #f1f5f9;
+      --panel: #ffffff;
+      --panel-2: #e2e8f0;
+      --text: #0f172a;
+      --muted: #334155;
+      --border: #cbd5e1;
+      --accent: #2563eb;
+      --accent-2: #1d4ed8;
+      --shadow: 0 10px 30px rgba(15, 23, 42, 0.10);
+    }
 
-<style>
-  body {
-    font-family: "Times New Roman", serif;
-    background: #0f172a;
-    color: white;
-    text-align: center;
-    padding: 20px;
-    transition: 0.3s;
-  }
+    * { box-sizing: border-box; }
 
-  body.light {
-    background: #f1f5f9;
-    color: black;
-  }
+    body {
+      margin: 0;
+      padding: 24px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Times New Roman", serif;
+      transition: background 0.25s ease, color 0.25s ease;
+    }
 
-  #dropArea {
-    border: 2px dashed #3b82f6;
-    padding: 30px;
-    margin: 20px auto;
-    width: 60%;
-    border-radius: 12px;
-    background: #1e293b;
-  }
+    .app {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
 
-  body.light #dropArea {
-    background: #e2e8f0;
-  }
+    .topbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 18px;
+    }
 
-  input, button {
-    margin: 10px;
-    padding: 10px;
-    border-radius: 8px;
-    border: none;
-  }
+    h1 {
+      margin: 0;
+      font-size: 2.2rem;
+      letter-spacing: 0.2px;
+    }
 
-  button {
-    background: #3b82f6;
-    color: white;
-    cursor: pointer;
-  }
+    .controls-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
 
-  .colorBox {
-    width: 100px;
-    height: 100px;
-    margin: 10px auto;
-    border: 2px solid white;
-    border-radius: 10px;
-  }
+    button, select, input[type="file"], input[type="color"] {
+      font-family: inherit;
+      font-size: 1rem;
+    }
 
-  .container {
-    display: flex;
-    gap: 20px;
-    margin-top: 30px;
-  }
+    button, .file-pill {
+      background: var(--panel);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px 14px;
+      box-shadow: var(--shadow);
+    }
 
-  .box {
-    width: 50%;
-    height: 400px;
-    overflow-y: auto;
-    background: #1e293b;
-    border-radius: 10px;
-    padding: 10px;
-  }
+    button {
+      cursor: pointer;
+      transition: transform 0.12s ease, background 0.2s ease;
+    }
 
-  body.light .box {
-    background: #e2e8f0;
-  }
+    button:hover { transform: translateY(-1px); }
 
-  canvas, img {
-    width: 110px;
-    height: 110px;
-    margin: 6px;
-  }
+    .primary {
+      background: var(--accent);
+      border-color: transparent;
+      color: #fff;
+    }
 
-  .palette {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-  }
+    .primary:hover { background: var(--accent-2); }
 
-  .palette-item {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    margin: 4px;
-  }
+    .ghost {
+      background: transparent;
+      box-shadow: none;
+    }
 
-  .color {
-    width: 18px;
-    height: 18px;
-    border: 1px solid #000;
-  }
+    .dropzone {
+      border: 2px dashed var(--accent);
+      border-radius: 18px;
+      padding: 26px;
+      background: color-mix(in srgb, var(--panel) 90%, transparent);
+      box-shadow: var(--shadow);
+      text-align: center;
+      margin-bottom: 18px;
+    }
 
-  .text {
-    font-size: 10px;
-    white-space: pre;
-  }
+    .dropzone.dragover {
+      background: color-mix(in srgb, var(--accent) 20%, var(--panel));
+    }
 
-  .bottom {
-    margin-top: 20px;
-  }
-</style>
+    .dropzone p {
+      margin: 0 0 12px;
+      color: var(--muted);
+      font-size: 1.05rem;
+    }
+
+    .file-input-wrap {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    input[type="file"] { max-width: 100%; color: var(--text); }
+
+    .status-line {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .mode-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 18px;
+    }
+
+    .mode-bar .left, .mode-bar .right {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .mode-bar label {
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      background: var(--panel);
+      border-radius: 12px;
+      box-shadow: var(--shadow);
+    }
+
+    .mode-note {
+      color: var(--muted);
+      margin: 0 0 18px;
+      line-height: 1.35;
+    }
+
+    .global-panel {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 18px;
+      align-items: center;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 18px;
+      box-shadow: var(--shadow);
+      margin-bottom: 18px;
+    }
+
+    .global-meta h2, .panel h2, .card h3 { margin: 0 0 10px; }
+
+    .global-meta p, .hint, .subtle { margin: 0; color: var(--muted); line-height: 1.35; }
+
+    .color-preview-box {
+      width: 140px;
+      height: 140px;
+      border-radius: 18px;
+      border: 2px solid var(--border);
+      box-shadow: var(--shadow);
+      background: #3b82f6;
+      margin-left: auto;
+    }
+
+    .global-color-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      margin-top: 12px;
+    }
+
+    .global-color-group input[type="color"] {
+      width: 64px;
+      height: 48px;
+      padding: 4px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--panel);
+    }
+
+    .panels {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+      align-items: start;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      min-height: 520px;
+      overflow: hidden;
+    }
+
+    .panel-head {
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .panel-body {
+      padding: 16px;
+      max-height: 72vh;
+      overflow: auto;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+      gap: 14px;
+    }
+
+    .card {
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 14px;
+    }
+
+    .image-wrap {
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      overflow: hidden;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: rgba(0,0,0,0.06);
+      display: grid;
+      place-items: center;
+      margin-bottom: 12px;
+    }
+
+    .image-wrap img, .image-wrap canvas {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+      image-rendering: pixelated;
+    }
+
+    .palette {
+      display: grid;
+      gap: 8px;
+      margin-top: 10px;
+      margin-bottom: 12px;
+    }
+
+    .palette-item {
+      display: grid;
+      grid-template-columns: 20px 1fr auto;
+      gap: 10px;
+      align-items: center;
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: color-mix(in srgb, var(--panel) 88%, transparent);
+    }
+
+    .swatch {
+      width: 18px;
+      height: 18px;
+      border-radius: 5px;
+      border: 1px solid rgba(0,0,0,0.2);
+      flex: none;
+    }
+
+    .palette-text {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+
+    .palette-text .hex {
+      font-weight: bold;
+      font-size: 0.95rem;
+    }
+
+    .palette-text .rgb {
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+
+    .replace-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .replace-wrap input[type="color"] {
+      width: 46px;
+      height: 34px;
+      padding: 2px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--panel);
+      cursor: pointer;
+    }
+
+    .replace-inline {
+      display: grid;
+      gap: 6px;
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid var(--border);
+    }
+
+    .replace-inline-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 2px;
+    }
+
+    .replace-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 8px;
+    }
+
+    .replace-pill {
+      display: grid;
+      grid-template-columns: 18px 1fr auto;
+      gap: 8px;
+      align-items: center;
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: rgba(255,255,255,0.03);
+    }
+
+    .replace-pill small {
+      display: block;
+      color: var(--muted);
+      line-height: 1.2;
+    }
+
+    .replace-pill input[type="color"] {
+      width: 42px;
+      height: 30px;
+      padding: 2px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--panel);
+      cursor: pointer;
+    }
+
+    .btn-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .download-btn { flex: 1 1 auto; }
+
+    .empty-state {
+      padding: 26px 14px;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    .hidden { display: none !important; }
+
+    @media (max-width: 1100px) {
+      .panels { grid-template-columns: 1fr; }
+      .global-panel { grid-template-columns: 1fr; }
+      .color-preview-box { margin-left: 0; }
+    }
+  </style>
 </head>
 <body>
+  <div class="app">
+    <div class="topbar">
+      <h1>Texture Color Converter</h1>
+      <div class="controls-row">
+        <button id="themeBtn" class="ghost">Toggle Dark / Light</button>
+      </div>
+    </div>
 
-<h1>Texture Color Converter</h1>
+    <div class="dropzone" id="dropArea">
+      <p>Drag &amp; drop images here or choose files below</p>
+      <div class="file-input-wrap">
+        <input type="file" id="upload" multiple accept="image/*" />
+      </div>
+      <div class="status-line" id="fileStatus">No files loaded yet.</div>
+    </div>
 
-<button onclick="toggleMode()">Toggle Dark / Light</button>
+    <div class="mode-bar">
+      <div class="left">
+        <label><input type="radio" name="mode" value="global" checked /> Global Recolor</label>
+        <label><input type="radio" name="mode" value="palette" /> Palette Editor</label>
+      </div>
+      <div class="right">
+        <button id="convertBtn" class="primary">Convert All</button>
+        <button id="zipBtn">Download All as ZIP</button>
+      </div>
+    </div>
 
-<div id="dropArea">
-  <p>Drag & Drop Images Here</p>
-  <input type="file" id="upload" multiple accept="image/*">
-</div>
+    <p class="mode-note" id="modeNote">Global mode keeps the whole texture in one chosen color scheme. Palette mode lets you edit the detected colors for each image on the right side.</p>
 
-<input type="color" id="colorPicker" value="#3b82f6" onchange="updateColorBox()">
-<div id="colorBox" class="colorBox"></div>
+    <div class="global-panel" id="globalPanel">
+      <div class="global-meta">
+        <h2>Global Recolor</h2>
+        <p>Pick one target color and the whole texture shifts into that color scheme while keeping shading.</p>
+        <div class="global-color-group">
+          <input type="color" id="globalColor" value="#3b82f6" />
+          <div>
+            <div id="globalColorText" class="subtle">#3b82f6 · rgb(59, 130, 246)</div>
+            <div class="hint">This box shows the current target color.</div>
+          </div>
+        </div>
+      </div>
+      <div id="globalColorBox" class="color-preview-box"></div>
+    </div>
 
-<br>
+    <div class="panels">
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Original Images</h2>
+          <span class="subtle" id="originalCount">0 images</span>
+        </div>
+        <div class="panel-body">
+          <div id="originalCards" class="cards">
+            <div class="empty-state">Add images to see the originals and their detected palette.</div>
+          </div>
+        </div>
+      </section>
 
-<button onclick="processImages()">Convert</button>
-
-<div class="container">
-  <div class="box">
-    <h3>Original</h3>
-    <div id="originals"></div>
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Converted Images</h2>
+          <span class="subtle" id="convertedCount">0 images</span>
+        </div>
+        <div class="panel-body">
+          <div id="convertedCards" class="cards">
+            <div class="empty-state">Converted previews will show here after you click Convert All.</div>
+          </div>
+        </div>
+      </section>
+    </div>
   </div>
 
-  <div class="box">
-    <h3>Converted</h3>
-    <div id="converted"></div>
-  </div>
-</div>
+  <script>
+    const fileInput = document.getElementById('upload');
+    const dropArea = document.getElementById('dropArea');
+    const themeBtn = document.getElementById('themeBtn');
+    const convertBtn = document.getElementById('convertBtn');
+    const zipBtn = document.getElementById('zipBtn');
+    const globalColorInput = document.getElementById('globalColor');
+    const globalColorBox = document.getElementById('globalColorBox');
+    const globalColorText = document.getElementById('globalColorText');
+    const globalPanel = document.getElementById('globalPanel');
+    const modeNote = document.getElementById('modeNote');
+    const originalCards = document.getElementById('originalCards');
+    const convertedCards = document.getElementById('convertedCards');
+    const fileStatus = document.getElementById('fileStatus');
+    const originalCount = document.getElementById('originalCount');
+    const convertedCount = document.getElementById('convertedCount');
 
-<div class="bottom">
-  <button onclick="downloadZip()">Download All as ZIP</button>
-</div>
+    const state = { mode: 'global', files: [] };
 
-<script>
-const fileInput = document.getElementById("upload");
-const dropArea = document.getElementById("dropArea");
+    function rgbToHex(r, g, b) {
+      return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
+    }
 
-let stored = [];
+    function hexToRgb(hex) {
+      const value = hex.replace('#', '').trim();
+      const num = parseInt(value, 16);
+      return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 };
+    }
 
-updateColorBox();
+    function clamp(n) {
+      return Math.max(0, Math.min(255, Math.round(n)));
+    }
 
-function toggleMode() {
-  document.body.classList.toggle("light");
-}
+    function luminance(r, g, b) {
+      return (0.2126 * r) + (0.7152 * g) + (0.0722 * b);
+    }
 
-function updateColorBox() {
-  const color = document.getElementById("colorPicker").value;
-  document.getElementById("colorBox").style.background = color;
-}
+    function colorDistance(a, b) {
+      const dr = a.r - b.r;
+      const dg = a.g - b.g;
+      const db = a.b - b.b;
+      return dr * dr + dg * dg + db * db;
+    }
 
-// Drag & Drop
-dropArea.addEventListener("dragover", e => {
-  e.preventDefault();
-  dropArea.style.background = "#334155";
-});
+    function updateGlobalColorUI() {
+      const hex = globalColorInput.value;
+      const rgb = hexToRgb(hex);
+      globalColorBox.style.background = hex;
+      globalColorText.textContent = `${hex} · rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`;
+    }
 
-dropArea.addEventListener("dragleave", () => {
-  dropArea.style.background = "";
-});
+    function setEmptyState(container, message) {
+      container.innerHTML = '';
+      const div = document.createElement('div');
+      div.className = 'empty-state';
+      div.textContent = message;
+      container.appendChild(div);
+    }
 
-dropArea.addEventListener("drop", e => {
-  e.preventDefault();
-  fileInput.files = e.dataTransfer.files;
-  showOriginals();
-});
+    function createPaletteItem(c) {
+      const item = document.createElement('div');
+      item.className = 'palette-item';
 
-fileInput.addEventListener("change", showOriginals);
+      const swatch = document.createElement('div');
+      swatch.className = 'swatch';
+      swatch.style.background = c.hex;
 
-// Show original images + palette
-function showOriginals() {
-  const box = document.getElementById("originals");
-  box.innerHTML = "";
+      const text = document.createElement('div');
+      text.className = 'palette-text';
+      text.innerHTML = `<div class="hex">${c.hex}</div><div class="rgb">rgb(${c.r}, ${c.g}, ${c.b})</div>`;
 
-  Array.from(fileInput.files).forEach(file => {
-    const wrap = document.createElement("div");
+      const right = document.createElement('div');
+      right.className = 'subtle';
+      right.textContent = 'detected';
 
-    const img = document.createElement("img");
-    img.src = URL.createObjectURL(file);
+      item.appendChild(swatch);
+      item.appendChild(text);
+      item.appendChild(right);
+      return item;
+    }
 
-    const pal = document.createElement("div");
-    pal.className = "palette";
+    function createReplacementRow(c, fileIndex, paletteIndex) {
+      const pill = document.createElement('div');
+      pill.className = 'replace-pill';
 
-    img.onload = () => {
-      getPalette(img).forEach(c => {
-        pal.appendChild(createPaletteItem(c));
+      const swatch = document.createElement('div');
+      swatch.className = 'swatch';
+      swatch.style.background = c.hex;
+
+      const text = document.createElement('div');
+      text.innerHTML = `<strong>${c.hex}</strong><small>rgb(${c.r}, ${c.g}, ${c.b})</small>`;
+
+      const input = document.createElement('input');
+      input.type = 'color';
+      input.value = c.hex;
+      input.dataset.original = c.hex;
+      input.dataset.imageIndex = String(fileIndex);
+      input.dataset.paletteIndex = String(paletteIndex);
+
+      pill.appendChild(swatch);
+      pill.appendChild(text);
+      pill.appendChild(input);
+      return pill;
+    }
+
+    async function loadImageFromFile(file) {
+      const url = URL.createObjectURL(file);
+      const img = await new Promise((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => resolve(image);
+        image.onerror = reject;
+        image.src = url;
       });
-    };
 
-    wrap.appendChild(img);
-    wrap.appendChild(pal);
-    box.appendChild(wrap);
-  });
-}
+      const palette = extractPalette(img);
+      return { file, url, img, palette };
+    }
 
-// Convert images
-function processImages() {
-  const files = fileInput.files;
-  const target = hexToRgb(document.getElementById("colorPicker").value);
-  const box = document.getElementById("converted");
+    function extractPalette(img) {
+      const c = document.createElement('canvas');
+      const ctx = c.getContext('2d', { willReadFrequently: true });
+      const sampleSize = 64;
+      c.width = sampleSize;
+      c.height = sampleSize;
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(img, 0, 0, sampleSize, sampleSize);
 
-  box.innerHTML = "";
-  stored = [];
+      const data = ctx.getImageData(0, 0, sampleSize, sampleSize).data;
+      const map = new Map();
 
-  Array.from(files).forEach(file => {
-    const img = new Image();
-    const reader = new FileReader();
-
-    reader.onload = e => img.src = e.target.result;
-
-    img.onload = () => {
-      const c = document.createElement("canvas");
-      const ctx = c.getContext("2d");
-
-      c.width = img.width;
-      c.height = img.height;
-
-      ctx.drawImage(img, 0, 0);
-
-      const data = ctx.getImageData(0, 0, c.width, c.height);
-      const d = data.data;
-
-      for (let i = 0; i < d.length; i += 4) {
-        const avg = (d[i] + d[i+1] + d[i+2]) / 3 / 255;
-        d[i] = target.r * avg;
-        d[i+1] = target.g * avg;
-        d[i+2] = target.b * avg;
+      for (let i = 0; i < data.length; i += 8) {
+        if (data[i + 3] < 20) continue;
+        const q = quantizeColor(data[i], data[i + 1], data[i + 2], 32);
+        const key = `${q.r},${q.g},${q.b}`;
+        const existing = map.get(key) || { r: q.r, g: q.g, b: q.b, count: 0 };
+        existing.count += 1;
+        map.set(key, existing);
       }
 
-      ctx.putImageData(data, 0, 0);
+      return [...map.values()]
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 6)
+        .map(c => ({ r: c.r, g: c.g, b: c.b, hex: rgbToHex(c.r, c.g, c.b) }));
+    }
 
-      stored.push({canvas: c, name: file.name});
+    function quantizeColor(r, g, b, step) {
+      const q = v => clamp(Math.floor(v / step) * step);
+      return { r: q(r), g: q(g), b: q(b) };
+    }
 
-      const wrap = document.createElement("div");
+    function renderOriginals() {
+      if (!state.files.length) {
+        setEmptyState(originalCards, 'Add images to see the originals and their detected palette.');
+        originalCount.textContent = '0 images';
+        return;
+      }
 
-      const pal = document.createElement("div");
-      pal.className = "palette";
+      originalCards.innerHTML = '';
+      state.files.forEach((entry, index) => {
+        const card = document.createElement('article');
+        card.className = 'card';
 
-      getPaletteFromCanvas(c).forEach(col => {
-        pal.appendChild(createPaletteItem(col));
+        const title = document.createElement('h3');
+        title.textContent = entry.file.name;
+
+        const imgWrap = document.createElement('div');
+        imgWrap.className = 'image-wrap';
+        const img = document.createElement('img');
+        img.src = entry.url;
+        img.alt = entry.file.name;
+        imgWrap.appendChild(img);
+
+        const paletteTitle = document.createElement('div');
+        paletteTitle.className = 'subtle';
+        paletteTitle.style.marginTop = '4px';
+        paletteTitle.style.marginBottom = '6px';
+        paletteTitle.textContent = 'Detected palette';
+
+        const palette = document.createElement('div');
+        palette.className = 'palette';
+        entry.palette.forEach(c => palette.appendChild(createPaletteItem(c)));
+
+        card.appendChild(title);
+        card.appendChild(imgWrap);
+        card.appendChild(paletteTitle);
+        card.appendChild(palette);
+        originalCards.appendChild(card);
       });
 
-      const btn = document.createElement("button");
-      btn.textContent = "Download";
-      btn.onclick = () => {
-        const a = document.createElement("a");
-        a.href = c.toDataURL();
-        a.download = "converted_" + file.name;
-        a.click();
-      };
+      originalCount.textContent = `${state.files.length} image${state.files.length === 1 ? '' : 's'}`;
+    }
 
-      wrap.appendChild(c);
-      wrap.appendChild(pal);
-      wrap.appendChild(btn);
+    function renderConvertedShells() {
+      if (!state.files.length) {
+        setEmptyState(convertedCards, 'Converted previews will show here after you click Convert All.');
+        convertedCount.textContent = '0 images';
+        return;
+      }
 
-      box.appendChild(wrap);
-    };
+      convertedCards.innerHTML = '';
+      state.files.forEach((entry, index) => {
+        const card = document.createElement('article');
+        card.className = 'card';
+        card.dataset.imageIndex = String(index);
 
-    reader.readAsDataURL(file);
-  });
-}
+        const title = document.createElement('h3');
+        title.textContent = entry.file.name;
 
-// ZIP download
-function downloadZip() {
-  if (!stored.length) return alert("No converted images!");
+        const previewWrap = document.createElement('div');
+        previewWrap.className = 'image-wrap';
+        previewWrap.id = `preview-${index}`;
+        previewWrap.innerHTML = '<div class="subtle">No converted preview yet.</div>';
 
-  const zip = new JSZip();
+        const info = document.createElement('div');
+        info.className = 'subtle';
+        info.textContent = state.mode === 'global'
+          ? 'Global mode uses one target color for the whole texture.'
+          : 'Palette mode lets you edit the detected colors below.';
 
-  stored.forEach(item => {
-    const base64 = item.canvas.toDataURL().split(",")[1];
-    zip.file(item.name, base64, { base64: true });
-  });
+        card.appendChild(title);
+        card.appendChild(previewWrap);
+        card.appendChild(info);
 
-  zip.generateAsync({ type: "blob" }).then(blob => {
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = "textures.zip";
-    a.click();
-  });
-}
+        if (state.mode === 'palette') {
+          const replaceBox = document.createElement('div');
+          replaceBox.className = 'replace-inline';
 
-// Palette helpers
-function createPaletteItem(c) {
-  const wrap = document.createElement("div");
-  wrap.className = "palette-item";
+          const head = document.createElement('div');
+          head.className = 'replace-inline-head';
+          head.innerHTML = '<div><strong>Edit palette</strong></div><div class="subtle">original → replacement</div>';
+          replaceBox.appendChild(head);
 
-  const box = document.createElement("div");
-  box.className = "color";
-  box.style.background = rgbToHex(c.r, c.g, c.b);
+          const grid = document.createElement('div');
+          grid.className = 'replace-grid';
+          entry.palette.forEach((c, pIndex) => grid.appendChild(createReplacementRow(c, index, pIndex)));
+          replaceBox.appendChild(grid);
+          card.appendChild(replaceBox);
+        }
 
-  const text = document.createElement("div");
-  text.className = "text";
-  text.innerText = `${rgbToHex(c.r,c.g,c.b)}\nrgb(${c.r},${c.g},${c.b})`;
+        const btnRow = document.createElement('div');
+        btnRow.className = 'btn-row';
 
-  wrap.appendChild(box);
-  wrap.appendChild(text);
+        const convertThis = document.createElement('button');
+        convertThis.className = 'primary download-btn';
+        convertThis.textContent = 'Convert This';
+        convertThis.addEventListener('click', () => convertSingle(index));
 
-  return wrap;
-}
+        const downloadBtn = document.createElement('button');
+        downloadBtn.className = 'download-btn';
+        downloadBtn.textContent = 'Download PNG';
+        downloadBtn.addEventListener('click', () => downloadSingle(index));
 
-function getPalette(img) {
-  const c = document.createElement("canvas");
-  const ctx = c.getContext("2d");
+        btnRow.appendChild(convertThis);
+        btnRow.appendChild(downloadBtn);
+        card.appendChild(btnRow);
 
-  c.width = 50;
-  c.height = 50;
-  ctx.drawImage(img, 0, 0, 50, 50);
+        convertedCards.appendChild(card);
+      });
 
-  return extract(ctx.getImageData(0, 0, 50, 50).data);
-}
+      convertedCount.textContent = `${state.files.length} image${state.files.length === 1 ? '' : 's'}`;
+    }
 
-function getPaletteFromCanvas(c) {
-  const ctx = c.getContext("2d");
-  return extract(ctx.getImageData(0, 0, 50, 50).data);
-}
+    function getPaletteMappings(imageIndex) {
+      const inputs = convertedCards.querySelectorAll(`input[type="color"][data-image-index="${imageIndex}"]`);
+      const map = new Map();
+      inputs.forEach(input => map.set(input.dataset.original, input.value));
+      return map;
+    }
 
-function extract(data) {
-  const map = {};
+    function applyGlobalRecolor(imageData, targetRgb) {
+      const data = imageData.data;
+      for (let i = 0; i < data.length; i += 4) {
+        if (data[i + 3] === 0) continue;
+        const lum = luminance(data[i], data[i + 1], data[i + 2]) / 255;
+        data[i] = clamp(targetRgb.r * lum);
+        data[i + 1] = clamp(targetRgb.g * lum);
+        data[i + 2] = clamp(targetRgb.b * lum);
+      }
+    }
 
-  for (let i = 0; i < data.length; i += 40) {
-    const r = data[i];
-    const g = data[i + 1];
-    const b = data[i + 2];
+    function applyPaletteRecolor(imageData, palette, mapping) {
+      const data = imageData.data;
+      const paletteRgb = palette.map(c => ({ r: c.r, g: c.g, b: c.b, hex: c.hex }));
 
-    const hex = rgbToHex(r, g, b);
-    map[hex] = { r, g, b };
-  }
+      for (let i = 0; i < data.length; i += 4) {
+        if (data[i + 3] === 0) continue;
 
-  return Object.values(map).slice(0, 6);
-}
+        const px = { r: data[i], g: data[i + 1], b: data[i + 2] };
+        let best = paletteRgb[0];
+        let bestDist = Infinity;
 
-function rgbToHex(r,g,b) {
-  return "#" + [r,g,b].map(x => x.toString(16).padStart(2,'0')).join('');
-}
+        for (const candidate of paletteRgb) {
+          const dist = colorDistance(px, candidate);
+          if (dist < bestDist) {
+            bestDist = dist;
+            best = candidate;
+          }
+        }
 
-function hexToRgb(hex) {
-  const n = parseInt(hex.slice(1), 16);
-  return { r:(n>>16)&255, g:(n>>8)&255, b:n&255 };
-}
-</script>
+        const replacementHex = mapping.get(best.hex) || best.hex;
+        const replacement = hexToRgb(replacementHex);
+        const srcLum = Math.max(1, luminance(best.r, best.g, best.b));
+        const pxLum = luminance(px.r, px.g, px.b);
+        const scale = pxLum / srcLum;
 
+        data[i] = clamp(replacement.r * scale);
+        data[i + 1] = clamp(replacement.g * scale);
+        data[i + 2] = clamp(replacement.b * scale);
+      }
+    }
+
+    function createCanvasFromEntry(entry, imageIndex) {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      canvas.width = entry.img.naturalWidth || entry.img.width;
+      canvas.height = entry.img.naturalHeight || entry.img.height;
+      ctx.drawImage(entry.img, 0, 0);
+
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      if (state.mode === 'global') {
+        applyGlobalRecolor(imageData, hexToRgb(globalColorInput.value));
+      } else {
+        const mapping = getPaletteMappings(imageIndex);
+        applyPaletteRecolor(imageData, entry.palette, mapping);
+      }
+      ctx.putImageData(imageData, 0, 0);
+      return canvas;
+    }
+
+    function updatePreview(imageIndex, canvas) {
+      const holder = document.getElementById(`preview-${imageIndex}`);
+      if (!holder) return;
+      holder.innerHTML = '';
+      holder.appendChild(canvas);
+    }
+
+    function convertSingle(imageIndex) {
+      const entry = state.files[imageIndex];
+      if (!entry) return;
+      const canvas = createCanvasFromEntry(entry, imageIndex);
+      updatePreview(imageIndex, canvas);
+      return canvas;
+    }
+
+    function downloadSingle(imageIndex) {
+      const entry = state.files[imageIndex];
+      if (!entry) return;
+      const canvas = createCanvasFromEntry(entry, imageIndex);
+      const link = document.createElement('a');
+      link.download = `converted_${entry.file.name}`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    }
+
+    function convertAll() {
+      if (!state.files.length) {
+        alert('Add some images first.');
+        return;
+      }
+      state.files.forEach((entry, index) => {
+        const canvas = createCanvasFromEntry(entry, index);
+        updatePreview(index, canvas);
+      });
+    }
+
+    async function downloadZip() {
+      if (!state.files.length) {
+        alert('Add some images first.');
+        return;
+      }
+
+      const zip = new JSZip();
+      state.files.forEach((entry, index) => {
+        const canvas = createCanvasFromEntry(entry, index);
+        const base64 = canvas.toDataURL('image/png').split(',')[1];
+        zip.file(`converted_${entry.file.name.replace(/\.[^.]+$/, '')}.png`, base64, { base64: true });
+      });
+
+      const blob = await zip.generateAsync({ type: 'blob' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = 'converted_textures.zip';
+      link.click();
+    }
+
+    async function loadFiles(fileList) {
+      const files = Array.from(fileList || []).filter(f => f.type.startsWith('image/'));
+      if (!files.length) return;
+
+      fileStatus.textContent = `Loading ${files.length} file${files.length === 1 ? '' : 's'}...`;
+      originalCards.innerHTML = '';
+      convertedCards.innerHTML = '';
+      state.files = [];
+      renderOriginals();
+      renderConvertedShells();
+
+      const loaded = [];
+      for (const file of files) {
+        try {
+          const entry = await loadImageFromFile(file);
+          loaded.push(entry);
+        } catch (err) {
+          console.error('Failed to load file:', file.name, err);
+        }
+      }
+
+      state.files = loaded;
+      fileStatus.textContent = `${state.files.length} image${state.files.length === 1 ? '' : 's'} loaded.`;
+      renderOriginals();
+      renderConvertedShells();
+      updateEmptyStatesAfterLoad();
+    }
+
+    function updateEmptyStatesAfterLoad() {
+      if (!state.files.length) {
+        setEmptyState(originalCards, 'Add images to see the originals and their detected palette.');
+        setEmptyState(convertedCards, 'Converted previews will show here after you click Convert All.');
+      }
+    }
+
+    function getSelectedMode() {
+      const checked = document.querySelector('input[name="mode"]:checked');
+      return checked ? checked.value : 'global';
+    }
+
+    function applyMode() {
+      state.mode = getSelectedMode();
+      globalPanel.classList.toggle('hidden', state.mode !== 'global');
+      modeNote.textContent = state.mode === 'global'
+        ? 'Global mode keeps the whole texture in one chosen color scheme.'
+        : 'Palette mode keeps the layout simple: edit the detected colors on the right side, then convert.';
+      renderConvertedShells();
+    }
+
+    function handleDropFiles(files) {
+      fileInput.files = files;
+      loadFiles(files);
+    }
+
+    themeBtn.addEventListener('click', () => {
+      document.body.classList.toggle('light');
+    });
+
+    globalColorInput.addEventListener('input', updateGlobalColorUI);
+    convertBtn.addEventListener('click', convertAll);
+    zipBtn.addEventListener('click', downloadZip);
+
+    document.querySelectorAll('input[name="mode"]').forEach(radio => {
+      radio.addEventListener('change', applyMode);
+    });
+
+    fileInput.addEventListener('change', () => loadFiles(fileInput.files));
+
+    dropArea.addEventListener('dragover', e => {
+      e.preventDefault();
+      dropArea.classList.add('dragover');
+    });
+
+    dropArea.addEventListener('dragleave', () => {
+      dropArea.classList.remove('dragover');
+    });
+
+    dropArea.addEventListener('drop', e => {
+      e.preventDefault();
+      dropArea.classList.remove('dragover');
+      if (e.dataTransfer.files && e.dataTransfer.files.length) {
+        handleDropFiles(e.dataTransfer.files);
+      }
+    });
+
+    updateGlobalColorUI();
+    applyMode();
+    updateEmptyStatesAfterLoad();
+  </script>
 </body>
 </html>
