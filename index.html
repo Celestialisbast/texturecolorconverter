@@ -42,7 +42,7 @@
     }
 
     .app {
-      max-width: 1400px;
+      max-width: 1450px;
       margin: 0 auto;
     }
 
@@ -68,21 +68,18 @@
       align-items: center;
     }
 
-    button, select, input[type="file"], input[type="color"] {
+    button, input[type="file"], input[type="color"] {
       font-family: inherit;
       font-size: 1rem;
     }
 
-    button, .file-pill {
+    button {
       background: var(--panel);
       color: var(--text);
       border: 1px solid var(--border);
       border-radius: 12px;
       padding: 10px 14px;
       box-shadow: var(--shadow);
-    }
-
-    button {
       cursor: pointer;
       transition: transform 0.12s ease, background 0.2s ease;
     }
@@ -106,14 +103,14 @@
       border: 2px dashed var(--accent);
       border-radius: 18px;
       padding: 26px;
-      background: color-mix(in srgb, var(--panel) 90%, transparent);
+      background: var(--panel);
       box-shadow: var(--shadow);
       text-align: center;
       margin-bottom: 18px;
     }
 
     .dropzone.dragover {
-      background: color-mix(in srgb, var(--accent) 20%, var(--panel));
+      background: var(--panel-2);
     }
 
     .dropzone p {
@@ -130,7 +127,10 @@
       justify-content: center;
     }
 
-    input[type="file"] { max-width: 100%; color: var(--text); }
+    input[type="file"] {
+      max-width: 100%;
+      color: var(--text);
+    }
 
     .status-line {
       margin-top: 8px;
@@ -144,7 +144,7 @@
       gap: 12px;
       align-items: center;
       justify-content: space-between;
-      margin-bottom: 18px;
+      margin-bottom: 14px;
     }
 
     .mode-bar .left, .mode-bar .right {
@@ -242,13 +242,13 @@
 
     .panel-body {
       padding: 16px;
-      max-height: 72vh;
+      max-height: 74vh;
       overflow: auto;
     }
 
     .cards {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
       gap: 14px;
     }
 
@@ -265,7 +265,7 @@
       overflow: hidden;
       border-radius: 14px;
       border: 1px solid var(--border);
-      background: rgba(0,0,0,0.06);
+      background: rgba(0, 0, 0, 0.06);
       display: grid;
       place-items: center;
       margin-bottom: 12px;
@@ -294,7 +294,7 @@
       padding: 8px 10px;
       border: 1px solid var(--border);
       border-radius: 12px;
-      background: color-mix(in srgb, var(--panel) 88%, transparent);
+      background: rgba(255,255,255,0.02);
     }
 
     .swatch {
@@ -322,27 +322,9 @@
       color: var(--muted);
     }
 
-    .replace-wrap {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      flex-wrap: wrap;
-      justify-content: flex-end;
-    }
-
-    .replace-wrap input[type="color"] {
-      width: 46px;
-      height: 34px;
-      padding: 2px;
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      background: var(--panel);
-      cursor: pointer;
-    }
-
     .replace-inline {
       display: grid;
-      gap: 6px;
+      gap: 8px;
       margin-top: 10px;
       padding-top: 10px;
       border-top: 1px solid var(--border);
@@ -584,10 +566,37 @@
       input.dataset.imageIndex = String(fileIndex);
       input.dataset.paletteIndex = String(paletteIndex);
 
+      input.addEventListener('input', () => {
+        const file = state.files[fileIndex];
+        if (!file) return;
+        file.replacements[paletteIndex] = input.value;
+        refreshOnePreview(fileIndex);
+      });
+
       pill.appendChild(swatch);
       pill.appendChild(text);
       pill.appendChild(input);
       return pill;
+    }
+
+    function createResetButton(fileIndex) {
+      const btn = document.createElement('button');
+      btn.textContent = 'Reset Palette';
+      btn.addEventListener('click', () => {
+        const file = state.files[fileIndex];
+        if (!file) return;
+        file.replacements = file.palette.map(c => c.hex);
+        const card = convertedCards.querySelector(`[data-image-index="${fileIndex}"]`);
+        if (card) {
+          card.querySelectorAll('input[type="color"]').forEach((input, idx) => {
+            const resetHex = file.palette[idx] ? file.palette[idx].hex : input.value;
+            input.value = resetHex;
+            file.replacements[idx] = resetHex;
+          });
+        }
+        refreshOnePreview(fileIndex);
+      });
+      return btn;
     }
 
     async function loadImageFromFile(file) {
@@ -600,39 +609,90 @@
       });
 
       const palette = extractPalette(img);
-      return { file, url, img, palette };
+      return { file, url, img, palette, replacements: palette.map(c => c.hex) };
     }
 
     function extractPalette(img) {
+      const sampleSize = 48;
       const c = document.createElement('canvas');
       const ctx = c.getContext('2d', { willReadFrequently: true });
-      const sampleSize = 64;
       c.width = sampleSize;
       c.height = sampleSize;
       ctx.imageSmoothingEnabled = false;
       ctx.drawImage(img, 0, 0, sampleSize, sampleSize);
 
       const data = ctx.getImageData(0, 0, sampleSize, sampleSize).data;
-      const map = new Map();
-
-      for (let i = 0; i < data.length; i += 8) {
+      const pixels = [];
+      for (let i = 0; i < data.length; i += 4) {
         if (data[i + 3] < 20) continue;
-        const q = quantizeColor(data[i], data[i + 1], data[i + 2], 32);
-        const key = `${q.r},${q.g},${q.b}`;
-        const existing = map.get(key) || { r: q.r, g: q.g, b: q.b, count: 0 };
-        existing.count += 1;
-        map.set(key, existing);
+        pixels.push({ r: data[i], g: data[i + 1], b: data[i + 2] });
       }
 
-      return [...map.values()]
-        .sort((a, b) => b.count - a.count)
-        .slice(0, 6)
-        .map(c => ({ r: c.r, g: c.g, b: c.b, hex: rgbToHex(c.r, c.g, c.b) }));
+      if (!pixels.length) {
+        return [{ r: 0, g: 0, b: 0, hex: '#000000' }];
+      }
+
+      const k = Math.min(6, Math.max(3, Math.min(pixels.length, 6)));
+      const centroids = initCentroids(pixels, k);
+      let assignments = new Array(pixels.length).fill(0);
+
+      for (let iter = 0; iter < 8; iter++) {
+        let changed = false;
+
+        for (let i = 0; i < pixels.length; i++) {
+          let best = 0;
+          let bestDist = Infinity;
+          for (let j = 0; j < centroids.length; j++) {
+            const dist = colorDistance(pixels[i], centroids[j]);
+            if (dist < bestDist) {
+              bestDist = dist;
+              best = j;
+            }
+          }
+          if (assignments[i] !== best) {
+            assignments[i] = best;
+            changed = true;
+          }
+        }
+
+        const sums = centroids.map(() => ({ r: 0, g: 0, b: 0, count: 0 }));
+        for (let i = 0; i < pixels.length; i++) {
+          const a = assignments[i];
+          sums[a].r += pixels[i].r;
+          sums[a].g += pixels[i].g;
+          sums[a].b += pixels[i].b;
+          sums[a].count += 1;
+        }
+
+        for (let j = 0; j < centroids.length; j++) {
+          if (sums[j].count > 0) {
+            centroids[j] = {
+              r: Math.round(sums[j].r / sums[j].count),
+              g: Math.round(sums[j].g / sums[j].count),
+              b: Math.round(sums[j].b / sums[j].count)
+            };
+          }
+        }
+
+        if (!changed) break;
+      }
+
+      const counts = centroids.map(() => 0);
+      assignments.forEach(a => counts[a]++);
+
+      return centroids
+        .map((c, i) => ({ r: c.r, g: c.g, b: c.b, hex: rgbToHex(c.r, c.g, c.b), count: counts[i] }))
+        .sort((a, b) => b.count - a.count);
     }
 
-    function quantizeColor(r, g, b, step) {
-      const q = v => clamp(Math.floor(v / step) * step);
-      return { r: q(r), g: q(g), b: q(b) };
+    function initCentroids(pixels, k) {
+      const step = Math.max(1, Math.floor(pixels.length / k));
+      const centroids = [];
+      for (let i = 0; i < k; i++) {
+        const p = pixels[(i * step) % pixels.length];
+        centroids.push({ r: p.r, g: p.g, b: p.b });
+      }
+      return centroids;
     }
 
     function renderOriginals() {
@@ -643,7 +703,7 @@
       }
 
       originalCards.innerHTML = '';
-      state.files.forEach((entry, index) => {
+      state.files.forEach((entry) => {
         const card = document.createElement('article');
         card.className = 'card';
 
@@ -721,6 +781,12 @@
           grid.className = 'replace-grid';
           entry.palette.forEach((c, pIndex) => grid.appendChild(createReplacementRow(c, index, pIndex)));
           replaceBox.appendChild(grid);
+
+          const resetRow = document.createElement('div');
+          resetRow.className = 'btn-row';
+          resetRow.appendChild(createResetButton(index));
+          replaceBox.appendChild(resetRow);
+
           card.appendChild(replaceBox);
         }
 
@@ -730,7 +796,7 @@
         const convertThis = document.createElement('button');
         convertThis.className = 'primary download-btn';
         convertThis.textContent = 'Convert This';
-        convertThis.addEventListener('click', () => convertSingle(index));
+        convertThis.addEventListener('click', () => refreshOnePreview(index));
 
         const downloadBtn = document.createElement('button');
         downloadBtn.className = 'download-btn';
@@ -747,25 +813,18 @@
       convertedCount.textContent = `${state.files.length} image${state.files.length === 1 ? '' : 's'}`;
     }
 
-    function getPaletteMappings(imageIndex) {
-      const inputs = convertedCards.querySelectorAll(`input[type="color"][data-image-index="${imageIndex}"]`);
-      const map = new Map();
-      inputs.forEach(input => map.set(input.dataset.original, input.value));
-      return map;
-    }
-
     function applyGlobalRecolor(imageData, targetRgb) {
       const data = imageData.data;
       for (let i = 0; i < data.length; i += 4) {
         if (data[i + 3] === 0) continue;
-        const lum = luminance(data[i], data[i + 1], data[i + 2]) / 255;
-        data[i] = clamp(targetRgb.r * lum);
-        data[i + 1] = clamp(targetRgb.g * lum);
-        data[i + 2] = clamp(targetRgb.b * lum);
+        const shade = 0.15 + (0.85 * (luminance(data[i], data[i + 1], data[i + 2]) / 255));
+        data[i] = clamp(targetRgb.r * shade);
+        data[i + 1] = clamp(targetRgb.g * shade);
+        data[i + 2] = clamp(targetRgb.b * shade);
       }
     }
 
-    function applyPaletteRecolor(imageData, palette, mapping) {
+    function applyPaletteRecolor(imageData, palette, replacements) {
       const data = imageData.data;
       const paletteRgb = palette.map(c => ({ r: c.r, g: c.g, b: c.b, hex: c.hex }));
 
@@ -784,15 +843,13 @@
           }
         }
 
-        const replacementHex = mapping.get(best.hex) || best.hex;
+        const replacementHex = replacements[paletteRgb.findIndex(c => c.hex === best.hex)] || best.hex;
         const replacement = hexToRgb(replacementHex);
-        const srcLum = Math.max(1, luminance(best.r, best.g, best.b));
-        const pxLum = luminance(px.r, px.g, px.b);
-        const scale = pxLum / srcLum;
+        const shade = 0.15 + (0.85 * (luminance(px.r, px.g, px.b) / 255));
 
-        data[i] = clamp(replacement.r * scale);
-        data[i + 1] = clamp(replacement.g * scale);
-        data[i + 2] = clamp(replacement.b * scale);
+        data[i] = clamp(replacement.r * shade);
+        data[i + 1] = clamp(replacement.g * shade);
+        data[i + 2] = clamp(replacement.b * shade);
       }
     }
 
@@ -807,26 +864,20 @@
       if (state.mode === 'global') {
         applyGlobalRecolor(imageData, hexToRgb(globalColorInput.value));
       } else {
-        const mapping = getPaletteMappings(imageIndex);
-        applyPaletteRecolor(imageData, entry.palette, mapping);
+        applyPaletteRecolor(imageData, entry.palette, entry.replacements);
       }
       ctx.putImageData(imageData, 0, 0);
       return canvas;
     }
 
-    function updatePreview(imageIndex, canvas) {
+    function refreshOnePreview(imageIndex) {
+      const entry = state.files[imageIndex];
+      if (!entry) return;
+      const canvas = createCanvasFromEntry(entry, imageIndex);
       const holder = document.getElementById(`preview-${imageIndex}`);
       if (!holder) return;
       holder.innerHTML = '';
       holder.appendChild(canvas);
-    }
-
-    function convertSingle(imageIndex) {
-      const entry = state.files[imageIndex];
-      if (!entry) return;
-      const canvas = createCanvasFromEntry(entry, imageIndex);
-      updatePreview(imageIndex, canvas);
-      return canvas;
     }
 
     function downloadSingle(imageIndex) {
@@ -834,7 +885,7 @@
       if (!entry) return;
       const canvas = createCanvasFromEntry(entry, imageIndex);
       const link = document.createElement('a');
-      link.download = `converted_${entry.file.name}`;
+      link.download = `converted_${entry.file.name.replace(/\.[^.]+$/, '')}.png`;
       link.href = canvas.toDataURL('image/png');
       link.click();
     }
@@ -846,7 +897,11 @@
       }
       state.files.forEach((entry, index) => {
         const canvas = createCanvasFromEntry(entry, index);
-        updatePreview(index, canvas);
+        const holder = document.getElementById(`preview-${index}`);
+        if (holder) {
+          holder.innerHTML = '';
+          holder.appendChild(canvas);
+        }
       });
     }
 
@@ -915,8 +970,9 @@
       globalPanel.classList.toggle('hidden', state.mode !== 'global');
       modeNote.textContent = state.mode === 'global'
         ? 'Global mode keeps the whole texture in one chosen color scheme.'
-        : 'Palette mode keeps the layout simple: edit the detected colors on the right side, then convert.';
+        : 'Palette mode keeps things simple: edit the detected colors on the right side, then convert.';
       renderConvertedShells();
+      if (state.files.length) renderOriginals();
     }
 
     function handleDropFiles(files) {
